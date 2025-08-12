@@ -1,67 +1,115 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>StandBy — Clock + Calendar</title>
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#000000">
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#000000" />
+
 <style>
   :root{
     --second:#ff3b30; --fg:#efefef; --muted:#8e8e8e; --panel:#000;
-    --pad: min(4vmin, 28px);
-    --size: clamp(200px, 42vmin, 720px);
-    --hand-hour: clamp(6px, calc(var(--size)*0.025), 16px);
-    --hand-min:  clamp(5px, calc(var(--size)*0.018), 12px);
-    --hand-sec:  clamp(1.5px, calc(var(--size)*0.0042), 3px);
-    --hub:       clamp(12px, calc(var(--size)*0.035), 24px);
-    --hub-ring:  clamp(2px, calc(var(--size)*0.006), 3px);
+
+    /* base square used by both widgets */
+    --size: clamp(200px, 2vmin, 200px);
+
+    /* layout padding + space between widgets */
+    --pad:0px;
+    --widgets-gap: -100px;
+
+    /* per-widget scale (edit these to resize whole widgets) */
+    --clock-scale: 1;
+    --cal-scale:   1.05;
+
+    /* hands + hub (derived to keep same look at any size) */
+    --hand-hour: 9px;
+    --hand-min:  9px;
+    --hand-sec:  3px;
+    --hub:       16px;
+    --hub-ring:  322px;
+
+    /* calendar day fallback (JS will refine) */
+    --day: clamp(24px, calc(var(--size)/9.5), 48px);
   }
-  @media (orientation: portrait){ :root{ --size: min( min(86vw, 44vh), 720px ); } }
-  @media (orientation: landscape){ :root{ --size: min( min(44vw, 86vh), 720px ); } }
+  @media (orientation:portrait){  :root{ --size:min(min(86vw,44vh),720px); } }
+  @media (orientation:landscape){ :root{ --size:min(min(44vw,86vh),720px); } }
 
-  html,body{height:100%;margin:0;background:#000;color:var(--fg);
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Segoe UI,Roboto,Helvetica,Arial;}
+  html,body{
+    height:100%; margin:0; background:#000; color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Segoe UI,Roboto,Helvetica,Arial;
+  }
 
-  .board{min-height:100dvh;padding:var(--pad);display:flex;gap:var(--pad);}
-  @media (orientation: portrait){ .board{flex-direction:column;justify-content:space-between;align-items:center;} }
-  @media (orientation: landscape){ .board{flex-direction:row;justify-content:space-between;align-items:center;} }
+  .board{
+    min-height:100dvh; padding:var(--pad);
+    display:flex; gap:var(--widgets-gap);
+  }
+  @media (orientation:portrait){
+    .board{ flex-direction:column; justify-content:space-between; align-items:center; }
+  }
+  @media (orientation:landscape){
+    .board{ flex-direction:row; justify-content:space-between; align-items:center; }
+  }
 
-  .panel{background:var(--panel);width:var(--size);height:var(--size);border-radius:22px;
-    display:flex;align-items:center;justify-content:center;}
+  .panel{
+    background:var(--panel); border-radius:22px;
+    display:flex; align-items:center; justify-content:center;
+    width:var(--size); height:var(--size);
+  }
+  .panel--clock{ width:calc(var(--size)*var(--clock-scale)); height:calc(var(--size)*var(--clock-scale));
+  padding:15px; }
+  .panel--cal  { width:calc(var(--size)*var(--cal-scale));   height:calc(var(--size)*var(--cal-scale));
+  padding:15px;  }
 
   /* CLOCK */
-  .dial{position:relative;width:100%;height:100%;border-radius:14%;overflow:hidden;background:#000;}
-  .dial .face{position:absolute;inset:0;background:url('clock-face.png') center/cover no-repeat;z-index:1;}
-  .hand{position:absolute;left:50%;top:50%;transform-origin:50% 90%;transform:translate(-50%,-90%) rotate(0deg);z-index:2;}
-  .hour{height:33%; width:var(--hand-hour); background:#fff; border-radius:999px; box-shadow:0 2px 10px rgba(0,0,0,.55);}
-  .min {height:48%; width:var(--hand-min);  background:#fff; border-radius:999px; box-shadow:0 2px 10px rgba(0,0,0,.55);}
-  .sec {height:54%; width:var(--hand-sec);  background:var(--second); border-radius:999px;}
-  .hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:var(--hub);height:var(--hub);border-radius:50%;background:#fff;z-index:3;}
-  .hub::before{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 var(--hub-ring) var(--second);background:#000;}
-  .hub::after{content:"";position:absolute;inset:calc(var(--hub)*0.22);border-radius:50%;background:#fff;}
+  .dial{ position:relative; width:100%; height:100%; border-radius:14%; overflow:hidden; background:#000; }
+  .dial .face{ position:absolute; inset:0; background:url('clock-face.png') center/cover no-repeat; z-index:1; }
+  .hand{ position:absolute; left:50%; top:50%; transform-origin:50% 90%; transform:translate(-50%,-90%) rotate(0deg); z-index:2; }
+  .hour{ height:25%; width:var(--hand-hour); background:#fff; border-radius:999px; box-shadow:0 2px 10px rgba(0,0,0,.55); }
+  .min { height:48%; width:var(--hand-min);  background:#fff; border-radius:999px; box-shadow:0 2px 10px rgba(0,0,0,.55); }
+  .sec { height:48%; width:var(--hand-sec);  background:var(--second); border-radius:999px; }
+  .hub{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+        width:var(--hub); height:var(--hub); border-radius:50%; background:#fff; z-index:3; }
+  .hub::before{ content:""; position:absolute; inset:0; border-radius:50%;
+                box-shadow:inset 0 0 0 var(--hub-ring) var(--second); background:#000; }
+  .hub::after{ content:""; position:absolute; inset:calc(var(--hub)*0.22); border-radius:50%; background:#fff; }
 
   /* CALENDAR */
-  .calcard{position:relative;width:100%;height:100%;border-radius:14%;background:#000;display:flex;flex-direction:column;
-    padding: clamp(12px, calc(var(--size)*0.04), 28px);}
-  .monthbar{display:flex;align-items:center;justify-content:flex-start;margin-bottom: clamp(6px, calc(var(--size)*0.018), 14px);}
-  .monthbar h2{margin:0;color:var(--second);letter-spacing:.22em;font-weight:800;font-size: clamp(14px, calc(var(--size)*0.04), 26px);}
-  .grid{flex:1;display:grid;grid-template-columns: repeat(7, var(--day, 40px)); grid-auto-rows: var(--day, 40px);
-    gap: clamp(4px, calc(var(--size)*0.018), 12px); align-content:start; justify-content:center;}
-  .dow{color:var(--muted);display:grid;place-items:center;font-weight:700;font-size: clamp(10px, calc(var(--day)*0.34), 16px);}
-  .cell{display:grid;place-items:center;font-weight:800;border-radius:999px;background: rgba(255,255,255,.02);color:#e9e9e9;
-    font-size: clamp(10px, calc(var(--day)*0.38), 18px);}
-  .muted{color:#595959;background: transparent;}
-  .weekend{color:#9a9a9a;background: rgba(255,255,255,.03);}
-  .today{background: var(--second) !important; color:#fff !important; outline:none;}
+  .calcard{
+    position:relative; width:100%; height:100%; border-radius:14%; background:#000;
+    display:flex; flex-direction:column;
+    padding: clamp(12px, calc(var(--size)*0.04), 80px);
+  }
+  .monthbar{ display:flex; align-items:center; justify-content:flex-start;
+             margin-bottom: clamp(6px, calc(var(--size)*0.018), 14px); 
+             margin-left: 5px;}
+  .monthbar h2{ margin:5px; color:var(--second); letter-spacing:.22em; font-weight:800;
+                font-size: clamp(14px, calc(var(--size)*0.04), 26px); }
+  .grid{
+    flex:1; display:grid;
+    grid-template-columns: repeat(7, var(--day));
+    grid-auto-rows: var(--day);
+    gap: clamp(4px, calc(var(--size)*0.018), 4px);
+    align-content:start; justify-content:center;
+    min-height: calc(var(--day) * 7 + clamp(4px, calc(var(--size)*0.018), 12px) * 6);
+  }
+  .dow{ color:var(--muted); display:grid; place-items:center; font-weight:700;
+        font-size: clamp(10px, calc(var(--day)*0.5), 16px); }
+  .cell{ display:grid; place-items:center; font-weight:800; border-radius:999px;
+        background: rgba(255,255,255,0); color:#e9e9e9;
+        font-size: clamp(10px, calc(var(--day)*0.5), 18px); }
+  .muted{ color:#292929; background:transparent; }
+  .weekend{ color:#7a7a7a; background: rgba(255,255,255,0); }
+  .today{ background:var(--second)!important; color:#fff!important; outline:none; }
 </style>
 </head>
 <body>
   <main class="board" aria-label="StandBy board">
-    <section class="panel" aria-label="Analog Clock">
+    <section class="panel panel--clock" aria-label="Analog Clock">
       <div class="dial">
         <div class="face" aria-hidden="true"></div>
         <div id="h" class="hand hour"></div>
@@ -70,65 +118,114 @@
         <div class="hub" aria-hidden="true"></div>
       </div>
     </section>
-    <section class="panel" aria-label="Monthly Calendar">
+
+    <section class="panel panel--cal" aria-label="Monthly Calendar">
       <div class="calcard">
         <div class="monthbar"><h2 id="monthlabel">MONTH</h2></div>
         <div class="grid" id="cal"></div>
       </div>
     </section>
   </main>
+
 <script>
-(() => {
-  /* Smooth Clock */
-  const H=document.getElementById('h'),M=document.getElementById('m'),S=document.getElementById('s');
-  function tick(){
-    const now=new Date(),ms=now.getMilliseconds();
-    const sec=now.getSeconds()+ms/1000,min=now.getMinutes()+sec/60,hrs=(now.getHours()%12)+min/60;
-    H.style.transform=`translate(-50%,-90%) rotate(${hrs*30}deg)`;
-    M.style.transform=`translate(-50%,-90%) rotate(${min*6}deg)`;
-    S.style.transform=`translate(-50%,-90%) rotate(${sec*6}deg)`;
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    /* Smooth clock */
+    const H=document.getElementById('h'), M=document.getElementById('m'), S=document.getElementById('s');
+    function tick(){
+      const now=new Date(), ms=now.getMilliseconds();
+      const sec=now.getSeconds()+ms/1000, min=now.getMinutes()+sec/60, hrs=(now.getHours()%12)+min/60;
+      H.style.transform=`translate(-50%,-90%) rotate(${hrs*30}deg)`;
+      M.style.transform=`translate(-50%,-90%) rotate(${min*6}deg)`;
+      S.style.transform=`translate(-50%,-90%) rotate(${sec*6}deg)`;
+      requestAnimationFrame(tick);
+    }
     requestAnimationFrame(tick);
-  } requestAnimationFrame(tick);
+  } catch(e){ console.error('Clock init error', e); }
 
-  /* Calendar (Sun-first; Fri/Sat weekend) */
+  /* Calendar */
+  const cal = document.getElementById('cal');
+  const label = document.getElementById('monthlabel');
+
   function sizeCalendar(){
-    const card = document.querySelector('.calcard');
-    const grid = document.getElementById('cal');
-    if(!card || !grid) return;
-    const cs = getComputedStyle(card);
-    const padL = parseFloat(cs.paddingLeft) || 0;
-    const padR = parseFloat(cs.paddingRight) || 0;
-    const padT = parseFloat(cs.paddingTop) || 0;
-    const padB = parseFloat(cs.paddingBottom) || 0;
-    const innerW = card.clientWidth - padL - padR;
-    const innerH = card.clientHeight - padT - padB;
-    const bar = card.querySelector('.monthbar');
-    const barH = (bar ? bar.offsetHeight : 0) + (bar ? parseFloat(getComputedStyle(bar).marginBottom) : 0);
-    const gs = getComputedStyle(grid);
-    const gap = parseFloat(gs.gap) || parseFloat(gs.rowGap) || 0;
-    const cols = 7, rows = 7; // 1 header + 6 weeks
-    const availW = innerW - gap * (cols - 1);
-    const availH = innerH - barH - gap * (rows - 1);
-    const day = Math.max(10, Math.floor(Math.min(availW / cols, availH / rows)));
-    grid.style.setProperty('--day', day + 'px');
+    try{
+      const card = document.querySelector('.calcard');
+      const grid = cal;
+      if(!card || !grid) return;
+      const cs = getComputedStyle(card);
+      const padL=parseFloat(cs.paddingLeft)||0, padR=parseFloat(cs.paddingRight)||0;
+      const padT=parseFloat(cs.paddingTop)||0,  padB=parseFloat(cs.paddingBottom)||0;
+      const innerW = card.clientWidth - padL - padR;
+      const innerH = card.clientHeight - padT - padB;
+      const bar = card.querySelector('.monthbar');
+      const barH = (bar ? bar.offsetHeight : 0) + (bar ? parseFloat(getComputedStyle(bar).marginBottom) : 0);
+      const gs = getComputedStyle(grid);
+      const gap = parseFloat(gs.gap) || parseFloat(gs.rowGap) || 0;
+      const cols=7, rows=7;
+      const availW = innerW - gap*(cols-1);
+      const availH = innerH - barH - gap*(rows-1);
+      const day = Math.max(10, Math.floor(Math.min(availW/cols, availH/rows)));
+      grid.style.setProperty('--day', day + 'px');
+    }catch(e){ console.error('Calendar size error',e); }
   }
 
-  const cal=document.getElementById('cal'),label=document.getElementById('monthlabel');
-  ['S','M','T','W','T','F','S'].forEach(d=>{const e=document.createElement('div');e.className='dow';e.textContent=d;cal.appendChild(e);});
   function build(date){
-    while(cal.childNodes.length>7) cal.removeChild(cal.lastChild);
-    label.textContent=new Intl.DateTimeFormat(navigator.language||'en-US',{month:'long'}).format(date).toUpperCase();
-    const y=date.getFullYear(),m=date.getMonth(),first=new Date(y,m,1),last=new Date(y,m+1,0),days=last.getDate(),start=first.getDay(),today=new Date();
-    const prevLast=new Date(y,m,0).getDate();
-    for(let i=start-1;i>=0;i--){const d=document.createElement('div');d.className='cell muted';d.textContent=prevLast-i;cal.appendChild(d);}
-    for(let day=1;day<=days;day++){const dt=new Date(y,m,day),dow=dt.getDay();const c=document.createElement('div');c.className='cell';c.textContent=day;
-      if(dow===5||dow===6) c.classList.add('weekend'); if(dt.toDateString()===today.toDateString()) c.classList.add('today'); cal.appendChild(c);}
-    const total=42,filled=start+days; for(let i=1;i<=total-filled;i++){const c=document.createElement('div');c.className='cell muted';c.textContent=i;cal.appendChild(c);}
+    try{
+      // header: Sun..Sat
+      if(cal.children.length===0){
+        ['S','M','T','W','T','F','S'].forEach(d=>{
+          const e=document.createElement('div'); e.className='dow'; e.textContent=d; cal.appendChild(e);
+        });
+      }else{
+        // remove old cells (keep first 7 header items)
+        while(cal.childNodes.length>7) cal.removeChild(cal.lastChild);
+      }
+
+      label.textContent = new Intl.DateTimeFormat(navigator.language||'en-US',{month:'long'})
+                            .format(date).toUpperCase();
+
+      const y=date.getFullYear(), m=date.getMonth();
+      const first=new Date(y,m,1), last=new Date(y,m+1,0), days=last.getDate(), start=first.getDay();
+      const today=new Date(), prevLast=new Date(y,m,0).getDate();
+
+      for(let i=start-1;i>=0;i--){
+        const d=document.createElement('div'); d.className='cell muted'; d.textContent=prevLast-i; cal.appendChild(d);
+      }
+      for(let day=1; day<=days; day++){
+        const dt=new Date(y,m,day), dow=dt.getDay();
+        const c=document.createElement('div'); c.className='cell'; c.textContent=day;
+        if(dow===5||dow===6) c.classList.add('weekend');            // Fri/Sat weekend
+        if(dt.toDateString()===today.toDateString()) c.classList.add('today'); // filled red today
+        cal.appendChild(c);
+      }
+      const filled=start+days, total=42;
+      for(let i=1;i<=total-filled;i++){
+        const c=document.createElement('div'); c.className='cell muted'; c.textContent=i; cal.appendChild(c);
+      }
+    }catch(e){ console.error('Calendar build error',e); }
   }
-  build(new Date()); sizeCalendar();
-  window.addEventListener('resize', sizeCalendar);
-  window.addEventListener('orientationchange', sizeCalendar);
-})();
+
+  build(new Date());
+  sizeCalendar();
+
+  // Optional URL overrides (no UI): ?clock=1.1&cal=0.9&gap=20
+  try{
+    const q=new URLSearchParams(location.search);
+    const set=(k,val)=>{
+      if(!val) return;
+      const needsPx = (k==='--widgets-gap');
+      const withUnits = /px$|vmin$|vw$|vh$|rem$|em$/.test(val) ? val
+                       : (isFinite(val) ? (val+(needsPx?'px':'')) : null);
+      if(withUnits) document.documentElement.style.setProperty(k, withUnits);
+    };
+    set('--clock-scale', q.get('clock'));
+    set('--cal-scale',   q.get('cal'));
+    set('--widgets-gap', q.get('gap'));
+  }catch(e){ console.warn('Query override skipped', e); }
+
+  addEventListener('resize', sizeCalendar);
+  addEventListener('orientationchange', sizeCalendar);
+});
 </script>
 </body>
 </html>
