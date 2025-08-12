@@ -42,11 +42,14 @@
   html,body{
     height:100%; margin:0; background:#000; color:var(--fg);
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Segoe UI,Roboto,Helvetica,Arial;
+    touch-action: manipulation; /* avoid 300ms delay */
   }
 
   .board{
     min-height:100dvh; padding:var(--pad);
     display:flex; gap:var(--widgets-gap);
+    width:100%;
+    touch-action: manipulation;
   }
   @media (orientation:portrait){
     .board{ flex-direction:column; justify-content:space-between; align-items:center; }
@@ -55,15 +58,17 @@
     .board{ flex-direction:row; justify-content:space-between; align-items:center; }
   }
 
+  /* SOLO state (toggled by tap) */
+  .board.solo{ justify-content:flex-end !important; }
+  .board.solo .panel--cal{ display:none !important; }
+
   .panel{
     background:var(--panel); border-radius:22px;
     display:flex; align-items:center; justify-content:center;
     width:var(--size); height:var(--size);
   }
-  .panel--clock{ width:calc(var(--size)*var(--clock-scale)); height:calc(var(--size)*var(--clock-scale));
-  padding:15px; }
-  .panel--cal  { width:calc(var(--size)*var(--cal-scale));   height:calc(var(--size)*var(--cal-scale));
-  padding:15px;  }
+  .panel--clock{ width:calc(var(--size)*var(--clock-scale)); height:calc(var(--size)*var(--clock-scale)); padding:15px; }
+  .panel--cal  { width:calc(var(--size)*var(--cal-scale));   height:calc(var(--size)*var(--cal-scale));   padding:15px; }
 
   /* CLOCK */
   .dial{ position:relative; width:100%; height:100%; border-radius:14%; overflow:hidden; background:#000; }
@@ -85,8 +90,8 @@
     padding: clamp(12px, calc(var(--size)*0.04), 80px);
   }
   .monthbar{ display:flex; align-items:center; justify-content:flex-start;
-             margin-bottom: clamp(6px, calc(var(--size)*0.018), 14px); 
-             margin-left: 5px;}
+             margin-bottom: clamp(6px, calc(var(--size)*0.018), 14px);
+             margin-left: 5px; }
   .monthbar h2{ margin:5px; color:var(--second); letter-spacing:.22em; font-weight:800;
                 font-size: clamp(14px, calc(var(--size)*0.04), 26px); }
   .grid{
@@ -129,19 +134,19 @@
 
 <script>
 window.addEventListener('DOMContentLoaded', () => {
-  try {
-    /* Smooth clock */
-    const H=document.getElementById('h'), M=document.getElementById('m'), S=document.getElementById('s');
-    function tick(){
+  /* Smooth clock – never stalls */
+  const H=document.getElementById('h'), M=document.getElementById('m'), S=document.getElementById('s');
+  function tick(){
+    try{
       const now=new Date(), ms=now.getMilliseconds();
       const sec=now.getSeconds()+ms/1000, min=now.getMinutes()+sec/60, hrs=(now.getHours()%12)+min/60;
       H.style.transform=`translate(-50%,-90%) rotate(${hrs*30}deg)`;
       M.style.transform=`translate(-50%,-90%) rotate(${min*6}deg)`;
       S.style.transform=`translate(-50%,-90%) rotate(${sec*6}deg)`;
-      requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-  } catch(e){ console.error('Clock init error', e); }
+    }catch(e){ console.error('Clock tick error', e); }
+    finally{ requestAnimationFrame(tick); }
+  }
+  requestAnimationFrame(tick);
 
   /* Calendar */
   const cal = document.getElementById('cal');
@@ -151,7 +156,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try{
       const card = document.querySelector('.calcard');
       const grid = cal;
-      if(!card || !grid) return;
+      if(!card || !grid || getComputedStyle(card).display==='none') return;
       const cs = getComputedStyle(card);
       const padL=parseFloat(cs.paddingLeft)||0, padR=parseFloat(cs.paddingRight)||0;
       const padT=parseFloat(cs.paddingTop)||0,  padB=parseFloat(cs.paddingBottom)||0;
@@ -171,13 +176,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function build(date){
     try{
-      // header: Sun..Sat
       if(cal.children.length===0){
         ['S','M','T','W','T','F','S'].forEach(d=>{
           const e=document.createElement('div'); e.className='dow'; e.textContent=d; cal.appendChild(e);
         });
       }else{
-        // remove old cells (keep first 7 header items)
         while(cal.childNodes.length>7) cal.removeChild(cal.lastChild);
       }
 
@@ -194,7 +197,7 @@ window.addEventListener('DOMContentLoaded', () => {
       for(let day=1; day<=days; day++){
         const dt=new Date(y,m,day), dow=dt.getDay();
         const c=document.createElement('div'); c.className='cell'; c.textContent=day;
-        if(dow===5||dow===6) c.classList.add('weekend');            // Fri/Sat weekend
+        if(dow===5||dow===6) c.classList.add('weekend');             // Fri/Sat weekend
         if(dt.toDateString()===today.toDateString()) c.classList.add('today'); // filled red today
         cal.appendChild(c);
       }
@@ -225,6 +228,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
   addEventListener('resize', sizeCalendar);
   addEventListener('orientationchange', sizeCalendar);
+
+  /* Tap anywhere to toggle SOLO mode (single pointer handler) */
+  const board = document.querySelector('.board');
+  let solo = false;
+  function toggleSolo(){
+    solo = !solo;
+    board.classList.toggle('solo', solo);
+    if (!solo) sizeCalendar(); // recalc when calendar becomes visible again
+  }
+  board.addEventListener('pointerup', toggleSolo, {passive:true});
 });
 </script>
 </body>
